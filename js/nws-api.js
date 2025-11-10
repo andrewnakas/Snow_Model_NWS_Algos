@@ -7,6 +7,32 @@ class NWSAPI {
     constructor() {
         this.baseURL = 'https://api.weather.gov';
         this.userAgent = 'Snow Forecast Algorithm Comparison App';
+        this.elevationAPI = 'https://api.open-elevation.com/api/v1/lookup';
+    }
+
+    /**
+     * Get elevation for a specific coordinate
+     * @param {number} lat - Latitude
+     * @param {number} lon - Longitude
+     * @returns {number} Elevation in meters
+     */
+    async getElevation(lat, lon) {
+        try {
+            const url = `${this.elevationAPI}?locations=${lat},${lon}`;
+            const response = await fetch(url);
+            if (!response.ok) {
+                console.warn('Elevation API failed, using fallback');
+                return null;
+            }
+            const data = await response.json();
+            if (data.results && data.results.length > 0) {
+                return data.results[0].elevation; // in meters
+            }
+            return null;
+        } catch (error) {
+            console.warn('Error fetching elevation:', error);
+            return null;
+        }
     }
 
     /**
@@ -166,6 +192,10 @@ class NWSAPI {
             // Get grid point info
             const gridPoint = await this.getGridPoint(lat, lon);
 
+            // Get elevation for the specific clicked point
+            let clickedElevationMeters = await this.getElevation(lat, lon);
+            let clickedElevationFeet = clickedElevationMeters ? clickedElevationMeters * 3.28084 : null;
+
             // Get detailed grid data
             const gridData = await this.getGridData(gridPoint.gridId, gridPoint.gridX, gridPoint.gridY);
 
@@ -240,19 +270,17 @@ class NWSAPI {
                 qpf = 0.1;
             }
 
-            // Estimate 850mb and 700mb temperatures from surface temp and standard lapse rate
-            // This is an approximation - real implementation would use model data
-            const temp850 = surfaceTemp ? surfaceTemp - 10 : null;
-            const temp700 = surfaceTemp ? surfaceTemp - 20 : null;
-
-            // Estimate thickness from temperature (rough approximation)
-            // 540 dam corresponds to ~32°F average temp in column
-            let thickness = null;
-            if (surfaceTemp !== null) {
-                // Very rough estimate: warmer = thicker
-                thickness = 520 + (surfaceTemp - 32) * 0.5;
-                thickness = Math.round(thickness);
+            // Get grid elevation from data
+            let gridElevation = getCurrentValue(props.elevation);
+            if (gridElevation !== null) {
+                // Convert meters to feet
+                gridElevation = gridElevation * 3.28084;
+            } else {
+                gridElevation = 0;
             }
+
+            // Use clicked elevation if available, otherwise use grid elevation
+            let targetElevation = clickedElevationFeet !== null ? clickedElevationFeet : gridElevation;
 
             // Precipitation rate (estimate)
             let precipRate = 0.05; // Default to light precipitation
@@ -262,15 +290,64 @@ class NWSAPI {
                 precipRate = 0.1; // Moderate
             }
 
-            // Elevation (approximate from grid data)
-            let elevation = getCurrentValue(props.elevation);
-            if (elevation !== null) {
-                // Convert meters to feet
-                elevation = elevation * 3.28084;
-            } else {
-                elevation = 0;
+            // Create initial parameters object from grid data
+            const gridParameters = {
+                surfaceTemp: surfaceTemp,
+                temp850: surfaceTemp ? surfaceTemp - 10 : null,
+                temp700: surfaceTemp ? surfaceTemp - 20 : null,
+                thickness: surfaceTemp ? Math.round(520 + (surfaceTemp - 32) * 0.5) : null,
+                relativeHumidity: relativeHumidity || 75,
+                precipRate: precipRate,
+                liquidPrecip: qpf,
+                elevation: gridElevation
+            };
+
+            // Apply atmospheric corrections if elevation differs from grid point
+            let correctedParameters = gridParameters;
+            let elevationCorrectionApplied = false;
+
+            if (Math.abs(targetElevation - gridElevation) > 100 && typeof AtmosphericCorrections !== 'undefined') {
+                // Significant elevation difference - apply corrections
+                console.log(`Applying atmospheric corrections for elevation difference: ${targetElevation - gridElevation} ft`);
+                correctedParameters = AtmosphericCorrections.applyElevationCorrections(
+                    gridParameters,
+                    gridElevation,
+                    targetElevation
+                );
+                elevationCorrectionApplied = true;
+
+                // Apply corrections to hourly data as well
+                const correctedHourlyData = AtmosphericCorrections.applyHourlyElevationCorrections(
+                    extendedHourlyData,
+                    gridElevation,
+                    targetElevation
+                );
+
+                return {
+                    location: {
+                        lat: lat,
+                        lon: lon,
+                        city: gridPoint.city,
+                        state: gridPoint.state,
+                        gridId: gridPoint.gridId,
+                        gridX: gridPoint.gridX,
+                        gridY: gridPoint.gridY,
+                        gridElevation: Math.round(gridElevation),
+                        actualElevation: Math.round(targetElevation),
+                        elevationCorrected: elevationCorrectionApplied
+                    },
+                    parameters: correctedParameters,
+                    forecast: hourlyForecast.properties.periods[0],
+                    hourlyData: correctedHourlyData,
+                    rawData: {
+                        gridData: props,
+                        observation: currentObs,
+                        gridParameters: gridParameters
+                    }
+                };
             }
 
+            // No correction needed - return original data
             return {
                 location: {
                     lat: lat,
@@ -279,18 +356,12 @@ class NWSAPI {
                     state: gridPoint.state,
                     gridId: gridPoint.gridId,
                     gridX: gridPoint.gridX,
-                    gridY: gridPoint.gridY
+                    gridY: gridPoint.gridY,
+                    gridElevation: Math.round(gridElevation),
+                    actualElevation: Math.round(targetElevation),
+                    elevationCorrected: false
                 },
-                parameters: {
-                    surfaceTemp: surfaceTemp,
-                    temp850: temp850,
-                    temp700: temp700,
-                    thickness: thickness,
-                    relativeHumidity: relativeHumidity || 75,
-                    precipRate: precipRate,
-                    liquidPrecip: qpf,
-                    elevation: elevation
-                },
+                parameters: correctedParameters,
                 forecast: hourlyForecast.properties.periods[0],
                 hourlyData: extendedHourlyData,
                 rawData: {

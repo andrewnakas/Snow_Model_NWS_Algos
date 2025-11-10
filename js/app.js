@@ -118,11 +118,38 @@ class SnowForecastApp {
             </div>
         `;
 
+        // Show elevation information
+        if (location.actualElevation !== undefined) {
+            const elevDiff = location.actualElevation - location.gridElevation;
+            let elevLabel = 'Elevation';
+            let elevValue = `${Math.round(location.actualElevation)} ft`;
+
+            if (location.elevationCorrected) {
+                elevLabel = 'Elevation (Corrected)';
+                elevValue = `${Math.round(location.actualElevation)} ft<br><small style="font-size:0.8rem;color:#f59e0b;">+${Math.round(elevDiff)} ft from grid</small>`;
+            }
+
+            html += `
+                <div class="forecast-item" style="border-left-color: ${location.elevationCorrected ? '#f59e0b' : '#3b82f6'};">
+                    <label>${elevLabel}</label>
+                    <div class="value" style="font-size: 1.3rem;">${elevValue}</div>
+                </div>
+            `;
+        }
+
         if (parameters.surfaceTemp !== null) {
+            let tempLabel = 'Surface Temperature';
+            let tempValue = `${parameters.surfaceTemp.toFixed(1)}°F`;
+
+            if (parameters.corrections && parameters.corrections.temperatureAdjustment !== 0) {
+                const adj = parameters.corrections.temperatureAdjustment;
+                tempValue += `<br><small style="font-size:0.8rem;color:#f59e0b;">${adj > 0 ? '+' : ''}${adj.toFixed(1)}°F adjusted</small>`;
+            }
+
             html += `
                 <div class="forecast-item">
-                    <label>Surface Temperature</label>
-                    <div class="value">${parameters.surfaceTemp.toFixed(1)}°F</div>
+                    <label>${tempLabel}</label>
+                    <div class="value">${tempValue}</div>
                 </div>
             `;
         }
@@ -157,15 +184,20 @@ class SnowForecastApp {
         html += `
             <div class="forecast-item">
                 <label>Liquid Precipitation</label>
-                <div class="value">${parameters.liquidPrecip.toFixed(2)} in</div>
+                <div class="value">${parameters.liquidPrecip.toFixed(3)} in</div>
             </div>
         `;
 
-        if (parameters.elevation > 0) {
+        // Show atmospheric corrections notice if applied
+        if (location.elevationCorrected && parameters.corrections) {
             html += `
-                <div class="forecast-item">
-                    <label>Elevation</label>
-                    <div class="value">${Math.round(parameters.elevation)} ft</div>
+                <div class="forecast-item" style="grid-column: 1 / -1; background: #fef3c7; border-left-color: #f59e0b;">
+                    <label>Atmospheric Corrections Applied</label>
+                    <div class="value" style="font-size: 0.9rem;">
+                        Temperature adjusted by ${parameters.corrections.temperatureAdjustment.toFixed(1)}°F •
+                        Thickness: ${parameters.corrections.thicknessAdjustment}dam •
+                        ${parameters.corrections.precipMultiplier > 1 ? `Orographic precip: ${(parameters.corrections.precipMultiplier * 100 - 100).toFixed(0)}% increase` : 'No orographic effect'}
+                    </div>
                 </div>
             `;
         }
