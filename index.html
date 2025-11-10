@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NOAA Snow Forecast Algorithms Comparison</title>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>NOAA Snow Forecast Algorithms</h1>
+            <p class="subtitle">Interactive comparison of snow-to-liquid ratio prediction methods</p>
+        </header>
+
+        <div class="main-content">
+            <!-- Map Section -->
+            <section class="map-section">
+                <h2>Select Location</h2>
+                <div id="map"></div>
+                <div class="coordinates-display">
+                    <span id="selected-coords">Click on the map to select a location</span>
+                </div>
+            </section>
+
+            <!-- Loading Indicator -->
+            <div id="loading" class="loading" style="display: none;">
+                <div class="spinner"></div>
+                <p>Fetching weather data from NWS API...</p>
+            </div>
+
+            <!-- Error Display -->
+            <div id="error" class="error" style="display: none;"></div>
+
+            <!-- Weather Data Display -->
+            <section id="weather-data" class="weather-data" style="display: none;">
+                <h2>Current Forecast Data</h2>
+                <div id="forecast-summary" class="forecast-summary"></div>
+            </section>
+
+            <!-- Algorithm Comparison Section -->
+            <section id="algorithm-results" class="algorithm-results" style="display: none;">
+                <h2>Snow Forecast Algorithm Comparison</h2>
+                <div class="algorithm-grid" id="algorithm-grid"></div>
+            </section>
+
+            <!-- Methodology Information -->
+            <section class="methodology">
+                <h2>About the Algorithms</h2>
+                <div class="algorithm-descriptions">
+                    <div class="algorithm-card">
+                        <h3>Simple 10:1 Ratio</h3>
+                        <p>Classic baseline method assuming 10 inches of snow equals 1 inch of liquid precipitation. Used as a simple reference point.</p>
+                    </div>
+
+                    <div class="algorithm-card">
+                        <h3>Thickness Method</h3>
+                        <p>Uses 1000-500mb atmospheric thickness to determine precipitation type and snow-to-liquid ratios. The 540 dam line traditionally separates rain from snow.</p>
+                    </div>
+
+                    <div class="algorithm-card">
+                        <h3>Simple Temperature Method</h3>
+                        <p>Calculates SLR based on surface temperature, with peak ratios in the -12°C to -18°C range where dendrite formation is optimal.</p>
+                    </div>
+
+                    <div class="algorithm-card">
+                        <h3>Dendritic Growth Zone</h3>
+                        <p>Optimized for the -12°C to -18°C temperature range where dendrite snow crystals form, producing the highest snow-to-liquid ratios.</p>
+                    </div>
+
+                    <div class="algorithm-card">
+                        <h3>Cobb-Waldstreicher Method</h3>
+                        <p>Advanced layer-weighted approach considering temperature, vertical motion, and humidity throughout the atmospheric column. Widely used at NWS offices.</p>
+                    </div>
+
+                    <div class="algorithm-card">
+                        <h3>Byun et al. Method</h3>
+                        <p>Calculates SLR as a function of both surface temperature and precipitation rate, accounting for the relationship between snowfall intensity and crystal structure.</p>
+                    </div>
+
+                    <div class="algorithm-card">
+                        <h3>Relative Humidity Adjusted</h3>
+                        <p>Modifies temperature-based ratios using relative humidity to account for crystal riming and aggregation processes.</p>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <footer>
+            <p>Data source: <a href="https://www.weather.gov/documentation/services-web-api" target="_blank">National Weather Service API</a></p>
+            <p>Algorithms based on NOAA Weather Prediction Center research and operational methods</p>
+        </footer>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Application JS -->
+    <script src="js/algorithms.js"></script>
+    <script src="js/nws-api.js"></script>
+    <script src="js/map.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
