@@ -10,6 +10,8 @@ Visit the live application: [https://andrewnakas.github.io/Snow_Model_NWS_Algos/
 
 - **Interactive Map**: Click anywhere on the map to get snow forecasts for that location
 - **Real-time Weather Data**: Fetches current and forecast data from the NWS API
+- **Extended Forecast Range**: 156 hours (6.5 days) of hourly predictions
+- **Elevation-Based Corrections**: Automatically adjusts forecasts for actual terrain elevation
 - **7 Snow Forecasting Algorithms**:
   - Simple 10:1 Ratio (baseline)
   - Thickness Method (1000-500mb)
@@ -18,6 +20,8 @@ Visit the live application: [https://andrewnakas.github.io/Snow_Model_NWS_Algos/
   - Cobb-Waldstreicher Method
   - Byun et al. Method
   - Relative Humidity Adjusted Method
+- **Interactive Hourly Charts**: Click any algorithm to see detailed hourly breakdowns with 4 comprehensive charts
+- **Atmospheric Corrections**: Lapse rate and orographic adjustments for mountain locations
 - **Side-by-side Comparison**: Compare all algorithms for the same location and conditions
 - **Confidence Ratings**: Each algorithm provides a confidence level for its prediction
 - **Responsive Design**: Works on desktop and mobile devices
@@ -57,9 +61,39 @@ Modifies temperature-based ratios using relative humidity to account for crystal
 
 ## Technical Details
 
+### Atmospheric Corrections
+
+The application automatically applies elevation-based atmospheric corrections for accurate forecasts:
+
+- **Elevation Detection**: Uses Open-Elevation API to determine actual terrain elevation at clicked point
+- **Temperature Lapse Rate**: Adjusts temperature using standard atmospheric lapse rates (5.5°F per 1000 ft for dry air, 3.3°F per 1000 ft for moist air)
+- **Pressure Altitude**: Calculates correct atmospheric pressure at target elevation
+- **Layer Temperatures**: Adjusts 850mb and 700mb temperatures based on elevation
+- **Thickness Adjustment**: Recalculates 1000-500mb thickness for target elevation
+- **Orographic Enhancement**: Accounts for precipitation increase in mountain locations (10% per 1000 ft elevation gain)
+- **Humidity Adjustment**: Modifies relative humidity for elevation changes
+
+**When corrections apply**: Automatically triggered when clicked elevation differs from NWS grid point by more than 100 feet. Orange indicators show corrected values.
+
+### Hourly Forecast Charts
+
+Click on any algorithm card to view detailed hourly forecasts with interactive charts:
+
+1. **Snowfall Accumulation**: Cumulative snowfall (line) and hourly snowfall (bars)
+2. **Snow-to-Liquid Ratio**: How SLR varies hour-by-hour based on changing conditions
+3. **Temperature & Humidity**: Dual-axis chart showing temperature and relative humidity trends
+4. **Precipitation**: Liquid precipitation amounts with probability overlay
+
+Each chart displays the full 156-hour forecast period with:
+- Total snowfall accumulation
+- Total liquid precipitation
+- Average SLR across forecast period
+- Snow Water Equivalent (SWE) percentage
+
 ### Data Sources
 
 - **Weather Data**: National Weather Service API (api.weather.gov)
+- **Elevation Data**: Open-Elevation API (api.open-elevation.com)
 - **Map Tiles**: OpenStreetMap
 - **Coverage**: Continental United States, Alaska, Hawaii, Puerto Rico, and Guam
 
@@ -67,8 +101,9 @@ Modifies temperature-based ratios using relative humidity to account for crystal
 
 - **Frontend**: Vanilla JavaScript (ES6+)
 - **Mapping**: Leaflet.js
+- **Charts**: Chart.js 4.4
 - **Styling**: CSS3 with CSS Grid and Flexbox
-- **API**: NWS API v1
+- **APIs**: NWS API v1, Open-Elevation API
 - **Deployment**: GitHub Pages with GitHub Actions
 
 ### Project Structure
@@ -77,12 +112,13 @@ Modifies temperature-based ratios using relative humidity to account for crystal
 Snow_Model_NWS_Algos/
 ├── index.html              # Main HTML file
 ├── css/
-│   └── styles.css          # Application styling
+│   └── styles.css          # Application styling with modal support
 ├── js/
-│   ├── algorithms.js       # Snow forecasting algorithms
-│   ├── nws-api.js         # NWS API integration
+│   ├── atmospheric.js      # Atmospheric corrections and lapse rates
+│   ├── algorithms.js       # Snow forecasting algorithms + hourly calculations
+│   ├── nws-api.js         # NWS API integration + elevation fetching
 │   ├── map.js             # Leaflet map interface
-│   └── app.js             # Main application logic
+│   └── app.js             # Main application logic + chart rendering
 ├── .github/
 │   └── workflows/
 │       └── deploy.yml     # GitHub Actions deployment
@@ -93,11 +129,21 @@ Snow_Model_NWS_Algos/
 
 1. **Select a Location**: Click anywhere on the map to select a location
 2. **View Weather Data**: The app fetches current weather conditions and forecast data
-3. **Compare Algorithms**: All algorithms run automatically and display their predictions
-4. **Interpret Results**:
+   - Automatically detects elevation at clicked point
+   - Applies atmospheric corrections if elevation differs from NWS grid
+   - Shows adjusted temperatures and parameters with orange indicators
+3. **Compare Algorithms**: All algorithms run automatically with corrected data
+4. **View Hourly Forecasts**: Click any algorithm card to see:
+   - Cumulative snowfall accumulation chart
+   - Hour-by-hour snow-to-liquid ratio changes
+   - Temperature and humidity trends
+   - Precipitation timing and amounts
+   - Total forecast statistics (156 hours / 6.5 days)
+5. **Interpret Results**:
    - **Ratio**: The snow-to-liquid ratio (e.g., 15:1 means 15" snow per 1" liquid)
    - **Snowfall**: Predicted snow accumulation based on forecast liquid precipitation
    - **Confidence**: High, medium, or low confidence in the prediction
+   - **Elevation Corrections**: Orange labels indicate elevation-adjusted parameters
 
 ## Development
 
