@@ -103,6 +103,62 @@ class NWSAPI {
     }
 
     /**
+     * Get extended hourly forecast data for all available periods
+     */
+    async getExtendedHourlyForecast(gridId, gridX, gridY) {
+        const hourlyForecast = await this.getHourlyForecast(gridId, gridX, gridY);
+        const periods = hourlyForecast.properties.periods;
+
+        // Process all hourly periods (typically 156 hours / 6.5 days)
+        const hourlyData = periods.map(period => {
+            const temp = period.temperature;
+            const tempF = period.temperatureUnit === 'F' ? temp : (temp * 9/5) + 32;
+
+            // Extract precipitation probability
+            const precipProb = period.probabilityOfPrecipitation?.value || 0;
+
+            // Estimate liquid precipitation (rough estimate based on probability)
+            let liquidPrecip = 0;
+            if (precipProb > 70) {
+                liquidPrecip = 0.10; // Heavy
+            } else if (precipProb > 40) {
+                liquidPrecip = 0.05; // Moderate
+            } else if (precipProb > 20) {
+                liquidPrecip = 0.02; // Light
+            }
+
+            // Extract wind speed
+            const windSpeed = period.windSpeed;
+
+            // Extract relative humidity from dewpoint if available
+            const dewpoint = period.dewpoint?.value;
+            let relHumidity = 70; // default
+            if (dewpoint !== null && dewpoint !== undefined) {
+                const dewpointF = (dewpoint * 9/5) + 32;
+                // Approximate RH from temp and dewpoint
+                relHumidity = 100 - 5 * (tempF - dewpointF);
+                relHumidity = Math.max(0, Math.min(100, relHumidity));
+            }
+
+            return {
+                startTime: new Date(period.startTime),
+                endTime: new Date(period.endTime),
+                temperature: tempF,
+                dewpoint: dewpoint,
+                relativeHumidity: Math.round(relHumidity),
+                windSpeed: windSpeed,
+                windDirection: period.windDirection,
+                precipProbability: precipProb,
+                liquidPrecip: liquidPrecip,
+                shortForecast: period.shortForecast,
+                isDaytime: period.isDaytime
+            };
+        });
+
+        return hourlyData;
+    }
+
+    /**
      * Extract weather parameters needed for snow algorithms
      */
     async getWeatherParameters(lat, lon) {
@@ -115,6 +171,9 @@ class NWSAPI {
 
             // Get hourly forecast for precipitation info
             const hourlyForecast = await this.getHourlyForecast(gridPoint.gridId, gridPoint.gridX, gridPoint.gridY);
+
+            // Get extended hourly data for charts
+            const extendedHourlyData = await this.getExtendedHourlyForecast(gridPoint.gridId, gridPoint.gridX, gridPoint.gridY);
 
             // Try to get current observations
             let currentObs = null;
@@ -233,6 +292,7 @@ class NWSAPI {
                     elevation: elevation
                 },
                 forecast: hourlyForecast.properties.periods[0],
+                hourlyData: extendedHourlyData,
                 rawData: {
                     gridData: props,
                     observation: currentObs

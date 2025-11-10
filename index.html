@@ -10,6 +10,9 @@
 
     <!-- Custom CSS -->
     <link rel="stylesheet" href="css/styles.css">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -95,6 +98,42 @@
             <p>Data source: <a href="https://www.weather.gov/documentation/services-web-api" target="_blank">National Weather Service API</a></p>
             <p>Algorithms based on NOAA Weather Prediction Center research and operational methods</p>
         </footer>
+    </div>
+
+    <!-- Chart Modal -->
+    <div id="chartModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Algorithm Details</h2>
+                <span class="modal-close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="chart-controls">
+                    <label>
+                        <input type="checkbox" id="showSnowfall" checked> Snowfall Accumulation
+                    </label>
+                    <label>
+                        <input type="checkbox" id="showSLR" checked> Snow-to-Liquid Ratio
+                    </label>
+                    <label>
+                        <input type="checkbox" id="showTemp" checked> Temperature
+                    </label>
+                    <label>
+                        <input type="checkbox" id="showPrecip" checked> Liquid Precipitation
+                    </label>
+                    <label>
+                        <input type="checkbox" id="showHumidity"> Relative Humidity
+                    </label>
+                </div>
+                <div class="charts-container">
+                    <canvas id="snowfallChart"></canvas>
+                    <canvas id="slrChart"></canvas>
+                    <canvas id="tempChart"></canvas>
+                    <canvas id="precipChart"></canvas>
+                </div>
+                <div id="totalStats" class="total-stats"></div>
+            </div>
+        </div>
     </div>
 
     <!-- Leaflet JS -->

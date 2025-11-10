@@ -209,12 +209,13 @@ class SnowForecastApp {
         if (!resultsSection || !gridElement) return;
 
         let html = '';
+        let index = 0;
 
         for (const result of results) {
             const confidenceBadge = `<span class="confidence-badge confidence-${result.confidence}">${result.confidence} confidence</span>`;
 
             html += `
-                <div class="algorithm-result">
+                <div class="algorithm-result" data-algorithm="${result.name}" data-index="${index}">
                     <h3>${result.name}</h3>
                     <div class="ratio">${result.ratio}:1</div>
                     <div class="snowfall">
@@ -227,10 +228,20 @@ class SnowForecastApp {
                     </div>
                 </div>
             `;
+            index++;
         }
 
         gridElement.innerHTML = html;
         resultsSection.style.display = 'block';
+
+        // Add click handlers to algorithm cards
+        const algorithmCards = document.querySelectorAll('.algorithm-result');
+        algorithmCards.forEach(card => {
+            card.addEventListener('click', (e) => {
+                const algorithmName = card.dataset.algorithm;
+                this.showAlgorithmDetails(algorithmName);
+            });
+        });
 
         // Scroll to results
         resultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -286,6 +297,403 @@ class SnowForecastApp {
         url.searchParams.set('lat', lat.toFixed(4));
         url.searchParams.set('lon', lon.toFixed(4));
         window.history.pushState({}, '', url);
+    }
+
+    /**
+     * Show algorithm details in modal with charts
+     */
+    showAlgorithmDetails(algorithmName) {
+        if (!this.currentWeatherData || !this.currentWeatherData.hourlyData) {
+            alert('No hourly data available');
+            return;
+        }
+
+        const hourlyData = this.currentWeatherData.hourlyData;
+        const elevation = this.currentWeatherData.parameters.elevation;
+
+        // Calculate hourly forecast for this algorithm
+        const hourlyForecast = SnowAlgorithms.calculateHourlyForecast(
+            algorithmName,
+            hourlyData,
+            elevation
+        );
+
+        // Show modal
+        this.showModal(algorithmName, hourlyForecast);
+    }
+
+    /**
+     * Show modal with charts
+     */
+    showModal(algorithmName, hourlyForecast) {
+        const modal = document.getElementById('chartModal');
+        const modalTitle = document.getElementById('modalTitle');
+
+        modalTitle.textContent = `${algorithmName} - Hourly Forecast`;
+        modal.classList.add('show');
+
+        // Setup modal close handlers
+        const closeBtn = document.querySelector('.modal-close');
+        closeBtn.onclick = () => this.closeModal();
+
+        window.onclick = (event) => {
+            if (event.target === modal) {
+                this.closeModal();
+            }
+        };
+
+        // Create charts
+        this.createCharts(hourlyForecast);
+
+        // Display totals
+        this.displayTotals(hourlyForecast.totals);
+    }
+
+    /**
+     * Close modal
+     */
+    closeModal() {
+        const modal = document.getElementById('chartModal');
+        modal.classList.remove('show');
+
+        // Destroy existing charts
+        if (this.charts) {
+            Object.values(this.charts).forEach(chart => {
+                if (chart) chart.destroy();
+            });
+            this.charts = {};
+        }
+    }
+
+    /**
+     * Create charts
+     */
+    createCharts(hourlyForecast) {
+        if (!this.charts) this.charts = {};
+
+        // Destroy existing charts
+        Object.values(this.charts).forEach(chart => {
+            if (chart) chart.destroy();
+        });
+
+        const hourly = hourlyForecast.hourly;
+
+        // Prepare labels (time)
+        const labels = hourly.map(h => {
+            const date = new Date(h.time);
+            return date.toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: 'numeric',
+                hour12: true
+            });
+        });
+
+        // Snowfall Accumulation Chart
+        this.charts.snowfall = new Chart(
+            document.getElementById('snowfallChart'),
+            {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Cumulative Snowfall (inches)',
+                            data: hourly.map(h => h.cumulativeSnowfall),
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Hourly Snowfall (inches)',
+                            data: hourly.map(h => h.snowfall),
+                            borderColor: '#60a5fa',
+                            backgroundColor: 'rgba(96, 165, 250, 0.5)',
+                            type: 'bar',
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Snowfall Accumulation',
+                            font: { size: 16, weight: 'bold' }
+                        },
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'Cumulative (inches)'
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'Hourly (inches)'
+                            },
+                            grid: {
+                                drawOnChartArea: false
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        }
+                    }
+                }
+            }
+        );
+
+        // SLR Chart
+        this.charts.slr = new Chart(
+            document.getElementById('slrChart'),
+            {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Snow-to-Liquid Ratio',
+                        data: hourly.map(h => h.ratio),
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Snow-to-Liquid Ratio Over Time',
+                            font: { size: 16, weight: 'bold' }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Ratio (X:1)'
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        }
+                    }
+                }
+            }
+        );
+
+        // Temperature Chart
+        this.charts.temp = new Chart(
+            document.getElementById('tempChart'),
+            {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Temperature (°F)',
+                            data: hourly.map(h => h.temperature),
+                            borderColor: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            fill: true,
+                            tension: 0.4,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Relative Humidity (%)',
+                            data: hourly.map(h => h.relativeHumidity),
+                            borderColor: '#8b5cf6',
+                            backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                            fill: true,
+                            tension: 0.4,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Temperature & Humidity',
+                            font: { size: 16, weight: 'bold' }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'Temperature (°F)'
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'Humidity (%)'
+                            },
+                            min: 0,
+                            max: 100,
+                            grid: {
+                                drawOnChartArea: false
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        }
+                    }
+                }
+            }
+        );
+
+        // Precipitation Chart
+        this.charts.precip = new Chart(
+            document.getElementById('precipChart'),
+            {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Liquid Precipitation (inches)',
+                            data: hourly.map(h => h.liquidPrecip),
+                            backgroundColor: 'rgba(59, 130, 246, 0.6)',
+                            borderColor: '#3b82f6',
+                            borderWidth: 1,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Precipitation Probability (%)',
+                            data: hourly.map(h => h.precipProbability),
+                            type: 'line',
+                            borderColor: '#f59e0b',
+                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                            fill: true,
+                            tension: 0.4,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Precipitation Forecast',
+                            font: { size: 16, weight: 'bold' }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'Liquid (inches)'
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'Probability (%)'
+                            },
+                            min: 0,
+                            max: 100,
+                            grid: {
+                                drawOnChartArea: false
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        }
+                    }
+                }
+            }
+        );
+    }
+
+    /**
+     * Display forecast totals
+     */
+    displayTotals(totals) {
+        const totalStats = document.getElementById('totalStats');
+
+        const html = `
+            <h3>Forecast Totals (${totals.duration} hours / ${(totals.duration / 24).toFixed(1)} days)</h3>
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <label>Total Snowfall</label>
+                    <div class="stat-value">${totals.snowfall.toFixed(2)}"</div>
+                </div>
+                <div class="stat-item">
+                    <label>Total Liquid</label>
+                    <div class="stat-value">${totals.liquid.toFixed(2)}"</div>
+                </div>
+                <div class="stat-item">
+                    <label>Average Ratio</label>
+                    <div class="stat-value">${totals.averageRatio.toFixed(1)}:1</div>
+                </div>
+                <div class="stat-item">
+                    <label>Snow Water Equivalent</label>
+                    <div class="stat-value">${totals.liquid > 0 ? ((totals.liquid / totals.snowfall) * 100).toFixed(1) : 0}%</div>
+                </div>
+            </div>
+        `;
+
+        totalStats.innerHTML = html;
     }
 
     /**

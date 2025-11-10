@@ -432,6 +432,93 @@ class SnowAlgorithms {
 
         return results;
     }
+
+    /**
+     * Calculate hourly forecast for a specific algorithm
+     *
+     * @param {string} algorithmName - Name of the algorithm
+     * @param {Array} hourlyData - Array of hourly weather data
+     * @param {number} elevation - Elevation in feet
+     * @returns {Object} Hourly forecast data
+     */
+    static calculateHourlyForecast(algorithmName, hourlyData, elevation = 0) {
+        const hourlyResults = [];
+        let cumulativeSnowfall = 0;
+        let cumulativeLiquid = 0;
+
+        for (const hour of hourlyData) {
+            const temp = hour.temperature;
+            const liquid = hour.liquidPrecip;
+            const rh = hour.relativeHumidity;
+
+            let result;
+
+            // Calculate based on algorithm type
+            switch (algorithmName) {
+                case "Simple 10:1 Ratio":
+                    result = this.simple10to1(liquid);
+                    break;
+
+                case "Thickness Method":
+                    // Estimate thickness from temperature
+                    const thickness = temp !== null ? Math.round(520 + (temp - 32) * 0.5) : null;
+                    result = this.thicknessMethod(thickness, liquid, elevation);
+                    break;
+
+                case "Simple Temperature Method":
+                    result = this.simpleTemperature(temp, liquid);
+                    break;
+
+                case "Dendritic Growth Zone":
+                    result = this.dendriticGrowthZone(temp, liquid);
+                    break;
+
+                case "Cobb-Waldstreicher Method":
+                    const temp850 = temp - 10;
+                    const temp700 = temp - 20;
+                    result = this.cobbWaldstreicher(temp, temp850, temp700, liquid, rh);
+                    break;
+
+                case "Byun et al. Method":
+                    const precipRate = liquid; // Assume hourly rate
+                    result = this.byunMethod(temp, precipRate, liquid);
+                    break;
+
+                case "Humidity Adjusted Method":
+                    result = this.humidityAdjusted(temp, rh, liquid);
+                    break;
+
+                default:
+                    result = this.simple10to1(liquid);
+            }
+
+            cumulativeSnowfall += result.snowfall;
+            cumulativeLiquid += liquid;
+
+            hourlyResults.push({
+                time: hour.startTime,
+                temperature: temp,
+                relativeHumidity: rh,
+                liquidPrecip: liquid,
+                ratio: result.ratio,
+                snowfall: result.snowfall,
+                cumulativeSnowfall: cumulativeSnowfall,
+                cumulativeLiquid: cumulativeLiquid,
+                windSpeed: hour.windSpeed,
+                precipProbability: hour.precipProbability
+            });
+        }
+
+        return {
+            hourly: hourlyResults,
+            totals: {
+                snowfall: cumulativeSnowfall,
+                liquid: cumulativeLiquid,
+                averageRatio: cumulativeLiquid > 0 ? cumulativeSnowfall / cumulativeLiquid : 0,
+                duration: hourlyResults.length
+            }
+        };
+    }
 }
 
 // Make available globally
